@@ -10,12 +10,11 @@ Progetto di una stazione meteorologica IoT basata su ESP32 OLIMEX POE con:
 ![OLIMEX POE ISO IND](https://www.olimex.com/Products/IoT/ESP32/ESP32-POE-ISO/resources/ESP32-POE-ISO-03.jpg)
 
 ## Caratteristiche Principali ✨
-- 🔌 Alimentazione via PoE (IEEE 802.3af)
-- 🛡️ Isolamento galvanico 2KV
-- 🌡️ Sensore SHT35 per temperatura/umidità
-- ⏲️ RTC DS3231 con batteria tampone
-- 📡 Connettività Ethernet 10/100 Mbps
-- 📊 Invio dati a Blynk e PWSWeather
+   - 🛜 Connessione duale Ethernet/WiFi con fallback automatico
+   - 🕰️ Sincronizzazione orario via NTP
+   - 📡 Invio dati a Blynk e servizio PWSWeather
+   - 🌍 Aggiornamento OTA via Blynk Air
+   - 🪫 Risparmio energetico con deep sleep
 
 ## Hardware Necessario 🛠️
 | Componente | Quantità | Note |
@@ -32,7 +31,7 @@ Progetto di una stazione meteorologica IoT basata su ESP32 OLIMEX POE con:
      https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
      ```
    - Installa il package "ESP32" via *Strumenti > Board > Board Manager*
-   - Seleziona: `ESP32 Dev Module`
+   - Seleziona: `OLIMEX ESP32-PoE-ISO`
 
 2. **Collegamenti HW:**
    ```plaintext
