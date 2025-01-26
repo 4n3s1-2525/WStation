@@ -205,7 +205,8 @@ void sendDataViaHTTP() {
     }
 
     http.end();
-  } while (!success && retry < 3);
+    delay(1000);
+  } while (!success && retry < 5);
 }
 
 /*==============================================================================
