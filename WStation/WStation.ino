@@ -351,12 +351,16 @@ void loop() {
       Serial.printf("Umidità: %.1f %%\n", humidity);
       Serial.printf("Pressione: %.1f hPa\n", pressure);
 
+      Serial.println("----------------------");
+
       // Invio dati
       if ((eth_connected || wifi_connected) && !OFFLINE_MOD) {
         Blynk.virtualWrite(V0, temperature);
         Blynk.virtualWrite(V1, humidity);
         Blynk.virtualWrite(V2, pressure);
         sendDataViaHTTP();
+      } else if (OFFLINE_MOD){
+        Serial.println("[NET] Offline mode attiva, dati non inviati");
       } else {
         Serial.println("[NET] Nessuna connessione per l'invio");
       }
