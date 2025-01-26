@@ -30,6 +30,10 @@
 #include <Update.h>      // Per OTA updates
 #include <HTTPClient.h>  // Per HTTP requests
 
+// Configurazione pin I2C per BMP280
+#define BMP_SDA 21
+#define BMP_SCL 22
+
 // Configurazione hardware Ethernet (specifica per OLIMEX POE ISO)
 #ifndef ETH_PHY_TYPE
 #define ETH_PHY_TYPE ETH_PHY_LAN8720
@@ -57,6 +61,8 @@ float pressure, temperature, humidity;
 int RdLastMinutes;                       // Ultimo minuto di lettura
 DateTime now;                            // Data/Ora corrente
 const int DATA_READ_DELTA_MINUTES = 10;  // Intervallo letture (minuti)
+float GRAD_TERMICO = 0.0065;
+int ALTITUDINE = 1050;
 
 #define uS_TO_S_FACTOR 1000000
 
