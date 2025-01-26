@@ -48,6 +48,7 @@
 // Variabili globali e oggetti
 static bool eth_connected = false;   // Stato connessione Ethernet
 static bool wifi_connected = false;  // Stato connessione WiFi
+static bool OFFLINE_MOD = true; 
 
 ArtronShop_SHT3x sht3x(0x44, &Wire);  // Sensore SHT35 (indirizzo I2C 0x44)
 RTC_DS3231 rtc;                       // Orologio RTC
@@ -355,7 +356,7 @@ void loop() {
       Serial.printf("Pressione: %.1f hPa\n", pressure);
 
       // Invio dati
-      if (eth_connected || wifi_connected) {
+      if (eth_connected || wifi_connected || !OFFLINE_MOD) {
         Blynk.virtualWrite(V0, temperature);
         Blynk.virtualWrite(V1, humidity);
         Blynk.virtualWrite(V2, pressure);
