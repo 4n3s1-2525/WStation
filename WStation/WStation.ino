@@ -352,7 +352,7 @@ void loop() {
       Serial.printf("Pressione: %.1f hPa\n", pressure);
 
       // Invio dati
-      if (eth_connected || wifi_connected || !OFFLINE_MOD) {
+      if ((eth_connected || wifi_connected) && !OFFLINE_MOD) {
         Blynk.virtualWrite(V0, temperature);
         Blynk.virtualWrite(V1, humidity);
         Blynk.virtualWrite(V2, pressure);
