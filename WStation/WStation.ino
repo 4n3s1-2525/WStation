@@ -30,10 +30,6 @@
 #include <Update.h>      // Per OTA updates
 #include <HTTPClient.h>  // Per HTTP requests
 
-// Configurazione pin I2C per BMP280
-#define BMP_SDA 21
-#define BMP_SCL 22
-
 // Configurazione hardware Ethernet (specifica per OLIMEX POE ISO)
 #ifndef ETH_PHY_TYPE
 #define ETH_PHY_TYPE ETH_PHY_LAN8720
@@ -270,7 +266,7 @@ void setup() {
   // Configurazione interfacce di rete
   Network.onEvent(onEvent);
   WiFi.onEvent(onEvent);
-  Wire.begin(BMP_SDA, BMP_SCL);
+  Wire.begin();
 
   // Tentativo connessione Ethernet
   unsigned long startTime = millis();
