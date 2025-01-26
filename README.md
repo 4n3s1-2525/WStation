@@ -7,8 +7,6 @@ Progetto di una stazione meteorologica IoT basata su ESP32 OLIMEX POE con:
 - Alimentazione PoE integrata
 - Monitoraggio ambientale professionale alla portata di tutti
 
-![OLIMEX POE ISO IND]([https://www.olimex.com/Products/IoT/ESP32/ESP32-POE-ISO/resources/ESP32-POE-ISO-03.jpg](https://www.olimex.com/Products/IoT/ESP32/ESP32-POE-ISO/images/thumbs/310x230/ESP32-POE-ISO-1.jpg))
-
 ## Caratteristiche Principali ✨
    - 🛜 Connessione duale Ethernet/WiFi con fallback automatico
    - 🕰️ Sincronizzazione orario via NTP
