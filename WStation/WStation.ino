@@ -215,8 +215,7 @@ void enterDeepSleep() {
   now = rtc.now();
 
   // Calcola secondi fino alla prossima lettura
-  int secondsToNextRead = (DATA_READ_DELTA_MINUTES - (now.minute() % DATA_READ_DELTA_MINUTES)) * 60;
-  secondsToNextRead -= now.second();  // Sottrai secondi già passati
+  int secondsToNextRead = (DATA_READ_DELTA_MINUTES - (now.minute() % DATA_READ_DELTA_MINUTES)) * 60 - now.second();
 
   if (secondsToNextRead <= 0) {
     secondsToNextRead += DATA_READ_DELTA_MINUTES * 60;
@@ -228,10 +227,21 @@ void enterDeepSleep() {
   int seconds = secondsToNextRead % 60;
 
   Serial.print("\n[Sleep] Entro in deep sleep per ");
-  if (hours > 0) Serial.print(hours + "h ");
-  if (minutes > 0) Serial.print(minutes + "m ");
-  if (seconds > 0) Serial.print(seconds + "s");
+  if (hours > 0) {
+    Serial.print(minutes);
+    Serial.print("h ");
+  }
+  if (minutes > 0) {
+    Serial.print(minutes);
+    Serial.print("m ");
+  }
+  if (seconds > 0) {
+    Serial.print(seconds);
+    Serial.print("s");
+  }
   Serial.println();
+
+  Serial.flush();
 
   // Configura e avvia deep sleep
   esp_sleep_enable_timer_wakeup(secondsToNextRead * uS_TO_S_FACTOR);
