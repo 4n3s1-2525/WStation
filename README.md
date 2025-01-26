@@ -3,9 +3,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Progetto di una stazione meteorologica IoT basata su ESP32 OLIMEX POE con:
+- Lettura di temperatura, umidità e pressione
 - Alimentazione PoE integrata
-- Isolamento galvanico
-- Monitoraggio ambientale professionale
+- Monitoraggio ambientale professionale alla portata di tutti
 
 ![OLIMEX POE ISO IND](https://www.olimex.com/Products/IoT/ESP32/ESP32-POE-ISO/resources/ESP32-POE-ISO-03.jpg)
 
