@@ -44,7 +44,7 @@
 // Variabili globali e oggetti
 static bool eth_connected = false;   // Stato connessione Ethernet
 static bool wifi_connected = false;  // Stato connessione WiFi
-static bool OFFLINE_MOD = true; 
+static bool OFFLINE_MOD = false;      // Modalità offline per testing
 
 ArtronShop_SHT3x sht3x(0x44, &Wire);  // Sensore SHT35 (indirizzo I2C 0x44)
 RTC_DS3231 rtc;                       // Orologio RTC
