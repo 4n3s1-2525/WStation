@@ -58,6 +58,8 @@ int RdLastMinutes;                       // Ultimo minuto di lettura
 DateTime now;                            // Data/Ora corrente
 const int DATA_READ_DELTA_MINUTES = 10;  // Intervallo letture (minuti)
 
+#define uS_TO_S_FACTOR 1000000
+
 // Prototipi funzioni
 void onEvent(arduino_event_id_t event);
 void updateRTC();
