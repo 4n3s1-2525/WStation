@@ -359,7 +359,7 @@ void loop() {
         }
         pressure = bmp.readPressure() / 100.0F;  // Converti a hPa
         i++;
-      } while ((pressure>900 && pressure<1100) || i=5)
+      } while ((pressure>900 && pressure<1100) || i==5);
 
       // Compensazione altitudine
       pressure = pressure * pow((1 - ((GRAD_TERMICO * ALTITUDINE) / (temperature + 273.15 + (GRAD_TERMICO * ALTITUDINE)))), -5.257);
