@@ -352,7 +352,14 @@ void loop() {
     if (sht3x.measure()) {
       temperature = sht3x.temperature();
       humidity = sht3x.humidity();
-      pressure = bmp.readPressure() / 100.0F;  // Converti a hPa
+      int i = 0;
+      do {
+        if(i>0){
+          delay(1000);
+        }
+        pressure = bmp.readPressure() / 100.0F;  // Converti a hPa
+        i++;
+      } while ((pressure>900 && pressure<1100) || i=5)
 
       // Compensazione altitudine
       pressure = pressure * pow((1 - ((GRAD_TERMICO * ALTITUDINE) / (temperature + 273.15 + (GRAD_TERMICO * ALTITUDINE)))), -5.257);
