@@ -9,12 +9,28 @@
   - Invio dati a Blynk e servizio PWSWeather
   - Aggiornamento OTA via Blynk Air
   - Risparmio energetico con deep sleep
+  - Invio dati in formato JSON a server MQTT Mosquitto
+*/
+
+/*
+  Stazione Meteo ESP32 con Ethernet/WiFi
+  Autore: Anesi Christian
+  Versione con aggiunta feature MQTT
+
+  Funzionalità principali:
+  - Lettura sensori SHT35 (Temp/Umidità) e BMP280 (Pressione)
+  - Connessione duale Ethernet/WiFi con fallback automatico
+  - Sincronizzazione orario via NTP
+  - Invio dati a Blynk e servizio PWSWeather
+  - Aggiornamento OTA via Blynk Air
+  - Risparmio energetico con deep sleep
+  - **Invio dati in formato JSON a server MQTT Mosquitto (192.168.3.111)**
 */
 
 #include "config.h"         // File di configurazione sensibile
 #define BLYNK_PRINT Serial  // Abilita debug Blynk su Serial
 
-#define BLYNK_FIRMWARE_VERSION "0.1.0"  // Versione firmware (incrementare ad ogni release)
+#define BLYNK_FIRMWARE_VERSION "0.2.0"  // Versione firmware (incrementare ad ogni release)
 
 // Librerie principali
 #include <BlynkSimpleEsp32.h>
@@ -27,8 +43,9 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP280.h>
 #include <WiFi.h>
-#include <Update.h>      // Per OTA updates
-#include <HTTPClient.h>  // Per HTTP requests
+#include <Update.h>        // Per OTA updates
+#include <HTTPClient.h>    // Per HTTP requests
+#include <PubSubClient.h>  // Per MQTT 
 
 // Configurazione hardware Ethernet (specifica per OLIMEX POE ISO)
 #ifndef ETH_PHY_TYPE
@@ -43,8 +60,8 @@
 
 // Variabili globali e oggetti
 static bool eth_connected = false;   // Stato connessione Ethernet
-static bool wifi_connected = false;  // Stato connessione WiFi
-static bool OFFLINE_MOD = false;      // Modalità offline per testing
+static bool wifi_connected = false;    // Stato connessione WiFi
+static bool OFFLINE_MOD = false;       // Modalità offline per testing
 
 ArtronShop_SHT3x sht3x(0x44, &Wire);  // Sensore SHT35 (indirizzo I2C 0x44)
 RTC_DS3231 rtc;                       // Orologio RTC
@@ -52,6 +69,15 @@ Adafruit_BMP280 bmp;                  // Sensore pressione BMP280
 
 WiFiUDP ntpUDP;  // Client NTP
 NTPClient timeClient(ntpUDP, "pool.ntp.org", 3600);
+
+// Impostazioni MQTT
+const char* mqtt_server = "192.168.3.111";
+const int mqtt_port = 1883;
+const char* mqtt_topic = "esp32/sensor";
+
+// Oggetti per MQTT (utilizziamo WiFiClient per entrambe le connessioni)
+WiFiClient mqttWiFiClient;
+PubSubClient mqttClient(mqttWiFiClient);
 
 // Variabili sensori
 float pressure, temperature, humidity;
@@ -68,6 +94,7 @@ void onEvent(arduino_event_id_t event);
 void updateRTC();
 int lastSundayOfMonth(int year, int month);
 void sendDataViaHTTP();
+void sendDataViaMQTT();
 void enterDeepSleep();
 void timeStamp();
 void reboot();
@@ -209,6 +236,46 @@ void sendDataViaHTTP() {
   } while (!success && retry < 5);
 }
 
+// Nuova funzione per invio dati via MQTT in formato JSON
+void sendDataViaMQTT() {
+  if (!(eth_connected || wifi_connected)) {
+    Serial.println("[MQTT] Nessuna connessione disponibile");
+    return;
+  }
+
+  // Imposta il server MQTT
+  mqttClient.setServer(mqtt_server, mqtt_port);
+
+  // Connessione se non già connessi
+  if (!mqttClient.connected()) {
+    String clientId = "ESP32Client-";
+    clientId += String(random(0xffff), HEX);
+    if (mqttClient.connect(clientId.c_str())) {
+      Serial.println("[MQTT] Connesso al broker");
+    } else {
+      Serial.print("[MQTT] Connessione fallita, rc=");
+      Serial.println(mqttClient.state());
+      return;
+    }
+  }
+
+  // Creazione del payload in formato JSON
+  String payload = "{";
+  payload += "\"temperature\":" + String(temperature, 1) + ",";
+  payload += "\"humidity\":" + String(humidity, 1) + ",";
+  payload += "\"pressure\":" + String(pressure, 1);
+  payload += "}";
+
+  // Pubblica i dati sul topic definito
+  if (mqttClient.publish(mqtt_topic, payload.c_str())) {
+    Serial.println("[MQTT] Dati pubblicati correttamente");
+  } else {
+    Serial.println("[MQTT] Errore pubblicazione dati");
+  }
+
+  mqttClient.disconnect();
+}
+
 /*==============================================================================
   GESTIONE RISPARMIO ENERGETICO
 ==============================================================================*/
@@ -229,7 +296,7 @@ void enterDeepSleep() {
 
   Serial.print("\n[Sleep] Entro in deep sleep per ");
   if (hours > 0) {
-    Serial.print(minutes);
+    Serial.print(hours);
     Serial.print("h ");
   }
   if (minutes > 0) {
@@ -354,12 +421,12 @@ void loop() {
       humidity = sht3x.humidity();
       int i = 0;
       do {
-        if(i>0){
+        if(i > 0){
           delay(1000);
         }
         pressure = bmp.readPressure() / 100.0F;  // Converti a hPa
         i++;
-      } while ((pressure>900 && pressure<1100) || i==5);
+      } while (pressure < 900 || pressure > 1100 || i == 5);
 
       // Compensazione altitudine
       pressure = pressure * pow((1 - ((GRAD_TERMICO * ALTITUDINE) / (temperature + 273.15 + (GRAD_TERMICO * ALTITUDINE)))), -5.257);
@@ -371,13 +438,14 @@ void loop() {
 
       Serial.println("----------------------");
 
-      // Invio dati
+      // Invio dati ai vari servizi
       if ((eth_connected || wifi_connected) && !OFFLINE_MOD) {
         Blynk.virtualWrite(V0, temperature);
         Blynk.virtualWrite(V1, humidity);
         Blynk.virtualWrite(V2, pressure);
         sendDataViaHTTP();
-      } else if (OFFLINE_MOD){
+        sendDataViaMQTT();
+      } else if (OFFLINE_MOD) {
         Serial.println("[NET] Offline mode attiva, dati non inviati");
       } else {
         Serial.println("[NET] Nessuna connessione per l'invio");
