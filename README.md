@@ -10,7 +10,7 @@ Progetto di una stazione meteorologica IoT basata su ESP32 OLIMEX POE con:
 ## Caratteristiche Principali ✨
    - 🛜 Connessione duale Ethernet/WiFi con fallback automatico
    - 🕰️ Sincronizzazione orario via NTP
-   - 📡 Invio dati a Blynk e servizio PWSWeather
+   - 📡 Invio dati a Blynk, MQTT e servizio PWSWeather
    - 🌍 Aggiornamento OTA via Blynk Air
    - 🪫 Risparmio energetico con deep sleep
 
