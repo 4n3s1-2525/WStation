@@ -418,23 +418,25 @@ void loop() {
     // Lettura sensori
     if (sht3x.measure()) {
       temperature = sht3x.temperature();
+      Serial.printf("Temperatura: %.1f °C\n", temperature);
       humidity = sht3x.humidity();
+      Serial.printf("Umidità: %.1f %%\n", humidity);
       int i = 0;
       do {
         if(i > 0){
           delay(1000);
         }
         pressure = bmp.readPressure() / 100.0F;  // Converti a hPa
+        pressure = pressure * pow((1 - ((GRAD_TERMICO * ALTITUDINE) / (temperature + 273.15 + (GRAD_TERMICO * ALTITUDINE)))), -5.257); // Compensazione altitudine
         i++;
-      } while (pressure < 900 || pressure > 1100 || i == 5);
-
-      // Compensazione altitudine
-      pressure = pressure * pow((1 - ((GRAD_TERMICO * ALTITUDINE) / (temperature + 273.15 + (GRAD_TERMICO * ALTITUDINE)))), -5.257);
-
-      // Stampa valori
-      Serial.printf("Temperatura: %.1f °C\n", temperature);
-      Serial.printf("Umidità: %.1f %%\n", humidity);
-      Serial.printf("Pressione: %.1f hPa\n", pressure);
+      } while ((pressure < 900 || pressure > 1100) && i <= 5);
+      
+      if(i<=5){
+        Serial.printf("Pressione: %.1f hPa\n", pressure);
+      } else {
+        Serial.println("Pressione: Err");
+      }
+      
 
       Serial.println("----------------------");
 
