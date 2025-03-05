@@ -24,7 +24,7 @@
   - Invio dati a Blynk e servizio PWSWeather
   - Aggiornamento OTA via Blynk Air
   - Risparmio energetico con deep sleep
-  - **Invio dati in formato JSON a server MQTT Mosquitto (192.168.3.111)**
+  - Invio dati in formato JSON a server MQTT Mosquitto
 */
 
 #include "config.h"         // File di configurazione sensibile
@@ -71,7 +71,7 @@ WiFiUDP ntpUDP;  // Client NTP
 NTPClient timeClient(ntpUDP, "pool.ntp.org", 3600);
 
 // Impostazioni MQTT
-const char* mqtt_server = "192.168.3.111";
+const char* mqtt_server = "192.168.3.5";
 const int mqtt_port = 1883;
 const char* mqtt_topic = "esp32/sensor";
 
