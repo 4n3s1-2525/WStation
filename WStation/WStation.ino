@@ -45,7 +45,7 @@
 #include <WiFi.h>
 #include <Update.h>        // Per OTA updates
 #include <HTTPClient.h>    // Per HTTP requests
-#include <PubSubClient.h>  // Per MQTT 
+#include <PubSubClient.h>  // Per MQTT
 
 // Configurazione hardware Ethernet (specifica per OLIMEX POE ISO)
 #ifndef ETH_PHY_TYPE
@@ -60,8 +60,7 @@
 
 // Variabili globali e oggetti
 static bool eth_connected = false;   // Stato connessione Ethernet
-static bool wifi_connected = false;    // Stato connessione WiFi
-static bool OFFLINE_MOD = false;       // Modalità offline per testing
+static bool wifi_connected = false;  // Stato connessione WiFi
 
 ArtronShop_SHT3x sht3x(0x44, &Wire);  // Sensore SHT35 (indirizzo I2C 0x44)
 RTC_DS3231 rtc;                       // Orologio RTC
@@ -81,9 +80,9 @@ PubSubClient mqttClient(mqttWiFiClient);
 
 // Variabili sensori
 float pressure, temperature, humidity;
-int RdLastMinutes;                       // Ultimo minuto di lettura
-DateTime now;                            // Data/Ora corrente
 const int DATA_READ_DELTA_MINUTES = 10;  // Intervallo letture (minuti)
+int RdLastMinutes;                      // Ultimo minuto di lettura
+DateTime now;                           // Data/Ora corrente
 float GRAD_TERMICO = 0.0065;
 int ALTITUDINE = 1050;
 
@@ -149,27 +148,29 @@ void updateRTC() {
   }
 
   time_t rawTime = timeClient.getEpochTime();
-  struct tm* timeInfo = localtime(&rawTime);
+  struct tm timeInfo;
+  localtime_r(&rawTime, &timeInfo);
+
 
   // Gestione ora legale (Italia)
-  int currentYear = timeInfo->tm_year + 1900;
-  int currentMonth = timeInfo->tm_mon + 1;
-  int currentDay = timeInfo->tm_mday;
+  int currentYear = timeInfo.tm_year + 1900;
+  int currentMonth = timeInfo.tm_mon + 1;
+  int currentDay = timeInfo.tm_mday;
 
-  bool isDST = (currentMonth > 3 && currentMonth < 10) || (currentMonth == 3 && currentDay > lastSundayOfMonth(currentYear, 3)) || (currentMonth == 10 && currentDay <= lastSundayOfMonth(currentYear, 10));
+  Serial.printf("[NTP] %04d-%02d-%02d %02d:%02d:%02d\n",
+                currentYear, currentMonth, currentDay,
+                timeInfo.tm_hour, timeInfo.tm_min, timeInfo.tm_sec);
 
-  if (isDST) {
-    timeInfo->tm_hour += 1;  // Aggiungi 1 ora per CEST
+  if ((currentMonth > 3 && currentMonth < 10) ||                                  // È tra aprile e settembre, quindi l'ora legale è attiva
+      (currentMonth == 3 && currentDay > lastSundayOfMonth(currentYear, 3)) ||    // È dopo l'ultima domenica di marzo
+      (currentMonth == 10 && currentDay < lastSundayOfMonth(currentYear, 10))) {  // È prima dell'ultima domenica di ottobre
+    timeInfo.tm_hour += 1;                                                        // Aggiungi 1 ora per l'ora legale
   }
 
   // Aggiorna RTC
-  rtc.adjust(DateTime(
-    timeInfo->tm_year + 1900,
-    timeInfo->tm_mon + 1,
-    timeInfo->tm_mday,
-    timeInfo->tm_hour,
-    timeInfo->tm_min,
-    timeInfo->tm_sec));
+  rtc.adjust(DateTime(timeInfo.tm_year + 1900, timeInfo.tm_mon + 1, timeInfo.tm_mday, timeInfo.tm_hour, timeInfo.tm_min, timeInfo.tm_sec));
+
+  timeStamp();
 }
 
 // Calcola l'ultima domenica del mese per DST
@@ -328,7 +329,7 @@ void timeStamp() {
 
 void reboot() {
   Serial.println("\n[System] Riavvio in corso...");
-  delay(100);
+  delay(100);                                                                           
   ESP.restart();
 }
 
@@ -337,9 +338,9 @@ void reboot() {
 ==============================================================================*/
 void setup() {
   Serial.begin(115200);
-  delay(1000);  // Attesa stabilizzazione seriale
+  delay(2000);  // Attesa stabilizzazione seriale
 
-  Serial.println("\n\n=== INIZIALIZZAZIONE SISTEMA ===");
+  Serial.println("\n\n==== INIZIALIZZAZIONE SISTEMA ====");
 
   // Configurazione interfacce di rete
   Network.onEvent(onEvent);
@@ -356,7 +357,7 @@ void setup() {
 
   // Fallback a WiFi se Ethernet non disponibile
   if (!eth_connected) {
-    Serial.println("[NET] Fallback a WiFi");
+    Serial.print("[NET] Fallback a WiFi");
     WiFi.begin(WIFI_SSID, WIFI_PASS);
 
     startTime = millis();
@@ -364,31 +365,36 @@ void setup() {
       delay(500);
       Serial.print(".");
     }
-    Serial.println(wifi_connected ? "\n[WiFi] Connesso" : "\n[WiFi] Fallito");
+    Serial.println(wifi_connected ? "[WiFi] Connesso" : "[WiFi] Fallito");
   }
 
   // Inizializzazione sensori
-  while (!sht3x.begin()) {
+  if (!sht3x.begin()) {
     Serial.println("[SHT35] Sensore non rilevato!");
     delay(1000);
+    reboot();
   }
 
   if (!bmp.begin(0x76)) {
     Serial.println("[BMP280] Sensore non rilevato!");
-    while (1) delay(1000);
+    delay(1000);
+    reboot();
   }
 
   // Configurazione RTC
   rtc.begin();
   timeClient.begin();
 
-  if (rtc.lostPower()) {
+  if (rtc.lostPower() && now.year() <= 2018) {
     Serial.println("[RTC] Batteria scarica, sincronizzo con NTP");
     do {
       updateRTC();
       now = rtc.now();
       delay(2000);
     } while (now.year() <= 2018);
+  } else {
+    updateRTC();
+    now = rtc.now();
   }
 
   // Connessione a Blynk
@@ -401,44 +407,68 @@ void setup() {
 
   timeStamp();
   RdLastMinutes = now.minute() - 1;  // Forza prima lettura
-  Serial.println("\n=== SISTEMA PRONTO ===");
+  Serial.println("\n==== SISTEMA PRONTO ====");
 }
 
 /*==============================================================================
   LOOP PRINCIPALE
 ==============================================================================*/
 void loop() {
+
   now = rtc.now();
 
+  // Verifica se l'RTC è in errore (batteria scarica o ora non valida)
+  if (rtc.lostPower() || now.year() <= 2018) {
+    Serial.println("[RTC] RTC non funzionante, prendo l'ora da Internet");
+
+    // Forzo l'aggiornamento del client NTP
+    if (timeClient.forceUpdate()) {
+      time_t rawTime = timeClient.getEpochTime();
+      // Assegno il tempo ottenuto direttamente a 'now' senza aggiornare l'RTC
+      now = DateTime(rawTime);
+    }
+  }
+
   if ((now.minute() % DATA_READ_DELTA_MINUTES == 0) && (RdLastMinutes != now.minute())) {
-    Serial.println("\n\n=== NUOVA LETTURA ===");
+    Serial.println("\n\n==== NUOVA LETTURA ====");
     timeStamp();
     Serial.println("Firmware: " + String(BLYNK_FIRMWARE_VERSION));
 
     // Lettura sensori
     if (sht3x.measure()) {
       temperature = sht3x.temperature();
-      Serial.printf("Temperatura: %.1f °C\n", temperature);
       humidity = sht3x.humidity();
-      Serial.printf("Umidità: %.1f %%\n", humidity);
       int i = 0;
       do {
-        if(i > 0){
+        if (i > 0) {
           delay(1000);
         }
-        pressure = bmp.readPressure() / 100.0F;  // Converti a hPa
-        pressure = pressure * pow((1 - ((GRAD_TERMICO * ALTITUDINE) / (temperature + 273.15 + (GRAD_TERMICO * ALTITUDINE)))), -5.257); // Compensazione altitudine
+        pressure = bmp.readPressure() / 100.0F;                                                                                         // Converti a hPa
+        pressure = pressure * pow((1 - ((GRAD_TERMICO * ALTITUDINE) / (temperature + 273.15 + (GRAD_TERMICO * ALTITUDINE)))), -5.257);  // Compensazione altitudine
         i++;
-      } while ((pressure < 900 || pressure > 1100) && i <= 5);
-      
-      if(i<=5){
+      } while ((pressure < 900 || pressure > 1100 || temperature > 100 || humidity > 100) && i <= 5);
+
+
+      if (i <= 5) {
+        if (temperature < 100) {
+          Serial.printf("Temperatura: %.1f °C\n", temperature);
+        } else {
+          Serial.printf("Temperatura: Err");
+        }
+
+        if (humidity <= 100) {
+          Serial.printf("Umidità: %.1f %%\n", humidity);
+        } else {
+          Serial.printf("Umidità: Err");
+        }
+
         Serial.printf("Pressione: %.1f hPa\n", pressure);
       } else {
         Serial.println("Pressione: Err");
       }
-      
 
-      Serial.println("----------------------");
+
+      Serial.println("------------------------");
 
       // Invio dati ai vari servizi
       if ((eth_connected || wifi_connected) && !OFFLINE_MOD) {
@@ -458,7 +488,9 @@ void loop() {
       Serial.println("[SHT35] Errore lettura");
     }
 
-    Serial.println("======================");
+
+    Serial.println("========================");
+
   } else {
     enterDeepSleep();
   }
