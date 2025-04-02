@@ -125,8 +125,6 @@ void onEvent(arduino_event_id_t event) {
 
     // Eventi WiFi
     case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-      Serial.print("[WiFi] IP assegnato: ");
-      Serial.println(WiFi.localIP());
       wifi_connected = true;
       break;
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
@@ -361,11 +359,17 @@ void setup() {
     WiFi.begin(WIFI_SSID, WIFI_PASS);
 
     startTime = millis();
-    while (!wifi_connected && (millis() - startTime < 10000)) {
+    while (!wifi_connected && (millis() - startTime < 20000)) {
       delay(500);
       Serial.print(".");
     }
-    Serial.println(wifi_connected ? "[WiFi] Connesso" : "[WiFi] Fallito");
+    if (wifi_connected) {
+      Serial.print("\n[WiFi] Connesso");
+      Serial.print("[WiFi] IP assegnato: ");
+      Serial.println(WiFi.localIP());
+    } else {
+      Serial.print("\n[WiFi] Fallito");
+    }
   }
 
   // Inizializzazione sensori
@@ -385,7 +389,8 @@ void setup() {
   rtc.begin();
   timeClient.begin();
 
-  if (rtc.lostPower() && now.year() <= 2018) {
+  if (eth_connected || wifi_connected){
+    if (rtc.lostPower() && now.year() <= 2018) {
     Serial.println("[RTC] Batteria scarica, sincronizzo con NTP");
     do {
       updateRTC();
@@ -396,6 +401,10 @@ void setup() {
     updateRTC();
     now = rtc.now();
   }
+  } else {
+    Serial.println("[RTC] Impossibile aggiornare l'ora, connessione a internet assente!"); 
+  }
+  
 
   // Connessione a Blynk
   if (eth_connected || wifi_connected) {
@@ -405,7 +414,6 @@ void setup() {
     }
   }
 
-  timeStamp();
   RdLastMinutes = now.minute() - 1;  // Forza prima lettura
   Serial.println("\n==== SISTEMA PRONTO ====");
 }
