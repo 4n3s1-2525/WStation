@@ -61,6 +61,7 @@
 // Variabili globali e oggetti
 static bool eth_connected = false;   // Stato connessione Ethernet
 static bool wifi_connected = false;  // Stato connessione WiFi
+static bool rtc_connected = false;   // Stato connessione modulo RTC
 
 ArtronShop_SHT3x sht3x(0x44, &Wire);  // Sensore SHT35 (indirizzo I2C 0x44)
 RTC_DS3231 rtc;                       // Orologio RTC
@@ -95,6 +96,7 @@ int lastSundayOfMonth(int year, int month);
 void sendDataViaHTTP();
 void sendDataViaMQTT();
 void enterDeepSleep();
+void updateLocalTime();
 void timeStamp();
 void reboot();
 
@@ -279,7 +281,7 @@ void sendDataViaMQTT() {
   GESTIONE RISPARMIO ENERGETICO
 ==============================================================================*/
 void enterDeepSleep() {
-  now = rtc.now();
+  updateLocalTime();
 
   // Calcola secondi fino alla prossima lettura
   int secondsToNextRead = (DATA_READ_DELTA_MINUTES - (now.minute() % DATA_READ_DELTA_MINUTES)) * 60 - now.second();
@@ -318,8 +320,42 @@ void enterDeepSleep() {
 /*==============================================================================
   UTILITIES
 ==============================================================================*/
+void updateLocalTime() {
+  if (rtc_connected) {
+    now = rtc.now();
+  } else {
+    if (!timeClient.update()) {
+      Serial.println("[NTP] Aggiornamento orario fallito");
+      return;
+    }
+    
+    time_t rawTime = timeClient.getEpochTime();
+    struct tm timeInfo;
+    localtime_r(&rawTime, &timeInfo);
+
+    // Estrae anno, mese e giorno
+    int currentYear = timeInfo.tm_year + 1900;
+    int currentMonth = timeInfo.tm_mon + 1;
+    int currentDay = timeInfo.tm_mday;
+
+    // Regole per l'ora legale in Italia:
+    // - Tra aprile e settembre, l'ora legale è attiva.
+    // - In marzo, se siamo dopo l'ultima domenica, si applica l'ora legale.
+    // - In ottobre, se siamo prima dell'ultima domenica, si applica l'ora legale.
+    if ((currentMonth > 3 && currentMonth < 10) ||
+        (currentMonth == 3 && currentDay > lastSundayOfMonth(currentYear, 3)) ||
+        (currentMonth == 10 && currentDay < lastSundayOfMonth(currentYear, 10))) {
+      timeInfo.tm_hour += 1;  // Aggiunge 1 ora per l'ora legale
+    }
+
+    // Converte nuovamente la struttura tm in time_t
+    rawTime = mktime(&timeInfo);
+    now = DateTime(rawTime);
+  }
+}
+
 void timeStamp() {
-  now = rtc.now();
+  updateLocalTime();
   Serial.printf("[RTC] %04d-%02d-%02d %02d:%02d:%02d\n",
                 now.year(), now.month(), now.day(),
                 now.hour(), now.minute(), now.second());
@@ -327,7 +363,7 @@ void timeStamp() {
 
 void reboot() {
   Serial.println("\n[System] Riavvio in corso...");
-  delay(100);                                                                           
+  delay(100);
   ESP.restart();
 }
 
@@ -377,34 +413,50 @@ void setup() {
     Serial.println("[SHT35] Sensore non rilevato!");
     delay(1000);
     reboot();
+  } else {
+    Serial.println("[SHT35] Sensore configurato");
   }
 
   if (!bmp.begin(0x76)) {
     Serial.println("[BMP280] Sensore non rilevato!");
     delay(1000);
     reboot();
+  } else {
+    Serial.println("[BMP280] Sensore configurato");
   }
 
   // Configurazione RTC
-  rtc.begin();
+  if (!rtc.begin()) {
+    Serial.println("[RTC] Sensore non rilevato!");
+    rtc_connected = false;
+    if (!wifi_connected && !eth_connected) {
+      Serial.println("[RTC] Impossbile passare all'orario NTP, internet assente!");
+      delay(1000);
+      reboot();
+    }
+  } else {
+    Serial.println("[RTC] Sensore configurato");
+  }
   timeClient.begin();
 
-  if (eth_connected || wifi_connected){
+  if ((eth_connected || wifi_connected) && rtc_connected) {
     if (rtc.lostPower() && now.year() <= 2018) {
-    Serial.println("[RTC] Batteria scarica, sincronizzo con NTP");
-    do {
+      Serial.println("[RTC] Batteria scarica, sincronizzo con NTP");
+      do {
+        updateRTC();
+        now = rtc.now();
+        delay(2000);
+      } while (now.year() <= 2018);
+    } else {
       updateRTC();
       now = rtc.now();
-      delay(2000);
-    } while (now.year() <= 2018);
+    }
+  } else if (!rtc_connected) {
+    Serial.println("[RTC] Passaggio all'orario NTP");
   } else {
-    updateRTC();
-    now = rtc.now();
+    Serial.println("[RTC] Impossibile aggiornare l'ora, connessione a internet assente!");
   }
-  } else {
-    Serial.println("[RTC] Impossibile aggiornare l'ora, connessione a internet assente!"); 
-  }
-  
+
 
   // Connessione a Blynk
   if (eth_connected || wifi_connected) {
@@ -423,19 +475,7 @@ void setup() {
 ==============================================================================*/
 void loop() {
 
-  now = rtc.now();
-
-  // Verifica se l'RTC è in errore (batteria scarica o ora non valida)
-  if (rtc.lostPower() || now.year() <= 2018) {
-    Serial.println("[RTC] RTC non funzionante, prendo l'ora da Internet");
-
-    // Forzo l'aggiornamento del client NTP
-    if (timeClient.forceUpdate()) {
-      time_t rawTime = timeClient.getEpochTime();
-      // Assegno il tempo ottenuto direttamente a 'now' senza aggiornare l'RTC
-      now = DateTime(rawTime);
-    }
-  }
+  updateLocalTime();
 
   if ((now.minute() % DATA_READ_DELTA_MINUTES == 0) && (RdLastMinutes != now.minute())) {
     Serial.println("\n\n==== NUOVA LETTURA ====");
