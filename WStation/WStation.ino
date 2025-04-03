@@ -1,20 +1,6 @@
 /*
   Stazione Meteo ESP32 con Ethernet/WiFi
   Autore: Anesi Christian
-  
-  Funzionalità principali:
-  - Lettura sensori SHT35 (Temp/Umidità) e BMP280 (Pressione)
-  - Connessione duale Ethernet/WiFi con fallback automatico
-  - Sincronizzazione orario via NTP
-  - Invio dati a Blynk e servizio PWSWeather
-  - Aggiornamento OTA via Blynk Air
-  - Risparmio energetico con deep sleep
-  - Invio dati in formato JSON a server MQTT Mosquitto
-*/
-
-/*
-  Stazione Meteo ESP32 con Ethernet/WiFi
-  Autore: Anesi Christian
   Versione con aggiunta feature MQTT
 
   Funzionalità principali:
