@@ -76,11 +76,10 @@ PubSubClient mqttClient(mqttWiFiClient);
 
 // Variabili sensori
 float pressure, temperature, humidity;
-const int DATA_READ_DELTA_MINUTES = 10;  // Intervallo letture (minuti)
 int RdLastMinutes;                      // Ultimo minuto di lettura
 DateTime now;                           // Data/Ora corrente
 float GRAD_TERMICO = 0.0065;
-int ALTITUDINE = 1050;
+
 
 #define uS_TO_S_FACTOR 1000000
 
