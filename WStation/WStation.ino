@@ -70,11 +70,6 @@ Adafruit_BMP280 bmp;                  // Sensore pressione BMP280
 WiFiUDP ntpUDP;  // Client NTP
 NTPClient timeClient(ntpUDP, "pool.ntp.org", 3600);
 
-// Impostazioni MQTT
-const char* mqtt_server = "192.168.3.5";
-const int mqtt_port = 1883;
-const char* mqtt_topic = "esp32/sensor";
-
 // Oggetti per MQTT (utilizziamo WiFiClient per entrambe le connessioni)
 WiFiClient mqttWiFiClient;
 PubSubClient mqttClient(mqttWiFiClient);
