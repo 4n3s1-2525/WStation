@@ -1,4 +1,3 @@
-WStation/config.h
 WStation/build/esp32.esp32.esp32-poe-iso/WStation.ino.bin
 WStation/build/esp32.esp32.esp32-poe-iso/WStation.ino.bootloader.bin
 WStation/build/esp32.esp32.esp32-poe-iso/WStation.ino.elf
