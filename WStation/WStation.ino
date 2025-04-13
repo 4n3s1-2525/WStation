@@ -62,8 +62,8 @@ PubSubClient mqttClient(mqttWiFiClient);
 
 // Variabili sensori
 float pressure, temperature, humidity;
-int RdLastMinutes;                      // Ultimo minuto di lettura
-DateTime now;                           // Data/Ora corrente
+int RdLastMinutes;  // Ultimo minuto di lettura
+DateTime now;       // Data/Ora corrente
 float GRAD_TERMICO = 0.0065;
 
 
@@ -308,7 +308,7 @@ void updateLocalTime() {
       Serial.println("[NTP] Aggiornamento orario fallito");
       return;
     }
-    
+
     time_t rawTime = timeClient.getEpochTime();
     struct tm timeInfo;
     localtime_r(&rawTime, &timeInfo);
@@ -322,9 +322,7 @@ void updateLocalTime() {
     // - Tra aprile e settembre, l'ora legale è attiva.
     // - In marzo, se siamo dopo l'ultima domenica, si applica l'ora legale.
     // - In ottobre, se siamo prima dell'ultima domenica, si applica l'ora legale.
-    if ((currentMonth > 3 && currentMonth < 10) ||
-        (currentMonth == 3 && currentDay > lastSundayOfMonth(currentYear, 3)) ||
-        (currentMonth == 10 && currentDay < lastSundayOfMonth(currentYear, 10))) {
+    if ((currentMonth > 3 && currentMonth < 10) || (currentMonth == 3 && currentDay > lastSundayOfMonth(currentYear, 3)) || (currentMonth == 10 && currentDay < lastSundayOfMonth(currentYear, 10))) {
       timeInfo.tm_hour += 1;  // Aggiunge 1 ora per l'ora legale
     }
 
@@ -470,6 +468,13 @@ void loop() {
       do {
         if (i > 0) {
           delay(1000);
+        }
+        if (!bmp.begin(0x76)) {
+          Serial.println("[BMP280] Sensore non rilevato!");
+          delay(1000);
+          reboot();
+        } else {
+          Serial.println("[BMP280] Sensore ri-configurato");
         }
         pressure = bmp.readPressure() / 100.0F;                                                                                         // Converti a hPa
         pressure = pressure * pow((1 - ((GRAD_TERMICO * ALTITUDINE) / (temperature + 273.15 + (GRAD_TERMICO * ALTITUDINE)))), -5.257);  // Compensazione altitudine
