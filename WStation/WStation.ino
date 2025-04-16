@@ -52,6 +52,10 @@ static bool rtc_connected = false;   // Stato connessione modulo RTC
 ArtronShop_SHT3x sht3x(0x44, &Wire);  // Sensore SHT35 (indirizzo I2C 0x44)
 RTC_DS3231 rtc;                       // Orologio RTC
 Adafruit_BMP280 bmp;                  // Sensore pressione BMP280
+#define RAINGAUGE_PIN 4               //Pluviometro
+
+float WaterMm = 0;
+float WaterMmDaily = 0;
 
 WiFiUDP ntpUDP;  // Client NTP
 NTPClient timeClient(ntpUDP, "pool.ntp.org", 3600);
@@ -62,8 +66,8 @@ PubSubClient mqttClient(mqttWiFiClient);
 
 // Variabili sensori
 float pressure, temperature, humidity;
-int RdLastMinutes;  // Ultimo minuto di lettura
-DateTime now;       // Data/Ora corrente
+int RdLastMinutes, LastDay;  // Ultimo minuto di lettura e ultimo giorno
+DateTime now;                // Data/Ora corrente
 float GRAD_TERMICO = 0.0065;
 
 
@@ -189,6 +193,8 @@ void sendDataViaHTTP() {
          + String(now.minute()) + ":00";
 
   if (temperature != 999) url += "&tempf=" + String(temperature * 9 / 5 + 32, 1);
+  url += "&rainin=" + String(WaterMm, 3);
+  url += "&dailyrainin=" + String(WaterMmDaily, 3);
   if (pressure > 0) url += "&baromin=" + String(pressure * 0.02952998, 4);
   if (humidity != 999) url += "&humidity=" + String(humidity, 1);
   url += "&softwaretype=WStation&action=updateraw";
@@ -244,7 +250,9 @@ void sendDataViaMQTT() {
   String payload = "{";
   payload += "\"temperature\":" + String(temperature, 1) + ",";
   payload += "\"humidity\":" + String(humidity, 1) + ",";
-  payload += "\"pressure\":" + String(pressure, 1);
+  payload += "\"pressure\":" + String(pressure, 1) + ",";
+  payload += "\"watermm\":" + String(WaterMm, 3) + ",";
+  payload += "\"watermmdaily\":" + String(WaterMmDaily, 3);
   payload += "}";
 
   // Pubblica i dati sul topic definito
@@ -378,11 +386,11 @@ void setup() {
       Serial.print(".");
     }
     if (wifi_connected) {
-      Serial.print("\n[WiFi] Connesso");
-      Serial.print("[WiFi] IP assegnato: ");
+      Serial.println("\n[WiFi] Connesso");
+      Serial.println("[WiFi] IP assegnato: ");
       Serial.println(WiFi.localIP());
     } else {
-      Serial.print("\n[WiFi] Fallito");
+      Serial.println("\n[WiFi] Fallito");
     }
   }
 
@@ -414,6 +422,7 @@ void setup() {
     }
   } else {
     Serial.println("[RTC] Sensore configurato");
+    rtc_connected = true;
   }
   timeClient.begin();
 
@@ -444,6 +453,7 @@ void setup() {
     }
   }
 
+  LastDay = now.day();
   RdLastMinutes = now.minute() - 1;  // Forza prima lettura
   Serial.println("\n==== SISTEMA PRONTO ====");
 }
@@ -452,6 +462,14 @@ void setup() {
   LOOP PRINCIPALE
 ==============================================================================*/
 void loop() {
+
+  Blynk.run();
+
+  if (digitalRead(RAINGAUGE_PIN)) {
+    WaterMm += equivalentH;
+    WaterMmDaily += equivalentH;
+    delay(100);
+  }
 
   updateLocalTime();
 
@@ -464,12 +482,22 @@ void loop() {
     if (sht3x.measure()) {
       temperature = sht3x.temperature();
       humidity = sht3x.humidity();
+
+      if (temperature < 100) {
+        Serial.printf("Temperatura: %.1f °C\n", temperature);
+      } else {
+        Serial.printf("Temperatura: Err");
+      }
+
+      if (humidity <= 100) {
+        Serial.printf("Umidità: %.1f %%\n", humidity);
+      } else {
+        Serial.printf("Umidità: Err");
+      }
+
       int i = 0;
       do {
-        if (i > 0) {
-          delay(1000);
-        }
-        if (!bmp.begin(0x76)) {
+        if (i != 0 && !bmp.begin(0x76)) {
           Serial.println("[BMP280] Sensore non rilevato!");
           delay(1000);
           reboot();
@@ -481,24 +509,15 @@ void loop() {
         i++;
       } while ((pressure < 900 || pressure > 1100) && i <= 5);
 
-
       if (i <= 5) {
-        if (temperature < 100) {
-          Serial.printf("Temperatura: %.1f °C\n", temperature);
-        } else {
-          Serial.printf("Temperatura: Err");
-        }
-
-        if (humidity <= 100) {
-          Serial.printf("Umidità: %.1f %%\n", humidity);
-        } else {
-          Serial.printf("Umidità: Err");
-        }
-
         Serial.printf("Pressione: %.1f hPa\n", pressure);
       } else {
         Serial.println("Pressione: Err");
       }
+
+      Serial.printf("Pioggia: %.3f mm\n", WaterMm);
+
+      Serial.printf("Pioggia giornaliera: %.3f mm\n", WaterMmDaily);
 
 
       Serial.println("------------------------");
@@ -521,11 +540,16 @@ void loop() {
       Serial.println("[SHT35] Errore lettura");
     }
 
+    WaterMm = 0;
+    if (now.day() != LastDay) {
+      WaterMmDaily = 0;
+      LastDay = now.day();
+    }
 
     Serial.println("========================");
 
   } else {
-    enterDeepSleep();
+    //enterDeepSleep();
   }
 }
 
