@@ -27,3 +27,9 @@ const char* serverUrl = "";        // Inserire l'URL del server PWS Weather (ese
 int ALTITUDINE = ;               // Altitudine del dispositivo (metri)
 const int DATA_READ_DELTA_MINUTES = ;  // Intervallo tra le letture dei dati (minuti)
 static bool OFFLINE_MOD = ;      // Modalità offline per testare il sistema senza connessione
+
+
+// Paramtri gestione pluviometro
+const long double mlXReversal = ;                                           //ml d'acqua per svuotamento della vaschetta
+const long double rainGaugeArea = ;                                         //Area della vasca di raccolta del pluviometro in decimetri quadrati
+const long double equivalentH = ((mlXReversal / 1000) / rainGaugeArea) * 100;  //mm di acqua caduti per svuotamento
