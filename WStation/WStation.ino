@@ -429,7 +429,8 @@ void setup() {
     Serial.println("[RTC] Sensore configurato");
     rtc_connected = true;
   }
-  timeClient.begin();
+  //timeClient.begin();
+  Serial.println("[NTP] Configurato");
 
   cause = esp_sleep_get_wakeup_cause();
 
