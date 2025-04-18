@@ -416,6 +416,8 @@ void setup() {
   Wire.begin();
   Serial.println("[I2C] Wire initialized");
 
+  connectToInternet();
+
   // Configurazione RTC
   if (!rtc.begin()) {
     Serial.println("[RTC] Sensore non rilevato!");
