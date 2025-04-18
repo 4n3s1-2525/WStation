@@ -5,3 +5,4 @@ WStation/build/esp32.esp32.esp32-poe-iso/WStation.ino.map
 WStation/build/esp32.esp32.esp32-poe-iso/WStation.ino.merged.bin
 WStation/build/esp32.esp32.esp32-poe-iso/WStation.ino.partitions.bin
 WStation/config.h
+/Test
