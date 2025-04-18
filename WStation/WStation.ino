@@ -54,8 +54,11 @@ RTC_DS3231 rtc;                       // Orologio RTC
 Adafruit_BMP280 bmp;                  // Sensore pressione BMP280
 #define RAINGAUGE_PIN 4               //Pluviometro
 
-float WaterMm = 0;
-float WaterMmDaily = 0;
+esp_sleep_wakeup_cause_t cause;
+bool needFullRead = false;
+
+RTC_DATA_ATTR float WaterMm = 0;
+RTC_DATA_ATTR float WaterMmDaily = 0;
 
 WiFiUDP ntpUDP;  // Client NTP
 NTPClient timeClient(ntpUDP, "pool.ntp.org", 3600);
@@ -66,7 +69,8 @@ PubSubClient mqttClient(mqttWiFiClient);
 
 // Variabili sensori
 float pressure, temperature, humidity;
-int RdLastMinutes, LastDay;  // Ultimo minuto di lettura e ultimo giorno
+RTC_DATA_ATTR int RdLastMinutes;
+RTC_DATA_ATTR int LastDay;
 DateTime now;                // Data/Ora corrente
 float GRAD_TERMICO = 0.0065;
 
@@ -300,10 +304,51 @@ void enterDeepSleep() {
 
   Serial.flush();
 
-  // Configura e avvia deep sleep
+  // --- wake-up su GPIO (pluviometro) ---
+  // qui assumo che il segnale vada alto ad ogni ribaltamento
+  esp_sleep_enable_ext0_wakeup((gpio_num_t)RAINGAUGE_PIN, 1);
+
+  // --- wake‑up su timer di backup ---
   esp_sleep_enable_timer_wakeup(secondsToNextRead * uS_TO_S_FACTOR);
+
+  // via in deep sleep
   esp_deep_sleep_start();
 }
+
+
+/*==============================================================================
+  INTERNET CONNECTION
+==============================================================================*/
+void connectToInternet() {
+
+  // Tentativo connessione Ethernet
+  unsigned long startTime = millis();
+  do {
+    ETH.begin();
+    delay(1000);
+    if (eth_connected) break;
+  } while (millis() - startTime < 2000);
+
+  // Fallback a WiFi se Ethernet non disponibile
+  if (!eth_connected) {
+    Serial.print("[NET] Fallback a WiFi");
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+    startTime = millis();
+    while (!wifi_connected && (millis() - startTime < 15000)) {
+      delay(500);
+      Serial.print(".");
+    }
+    if (wifi_connected) {
+      Serial.println("\n[WiFi] Connesso");
+      Serial.println("[WiFi] IP assegnato: ");
+      Serial.println(WiFi.localIP());
+    } else {
+      Serial.println("\n[WiFi] Fallito");
+    }
+  }
+}
+
 
 /*==============================================================================
   UTILITIES
@@ -311,7 +356,7 @@ void enterDeepSleep() {
 void updateLocalTime() {
   if (rtc_connected) {
     now = rtc.now();
-  } else {
+  } else if (eth_connected || wifi_connected){
     if (!timeClient.update()) {
       Serial.println("[NTP] Aggiornamento orario fallito");
       return;
@@ -332,6 +377,9 @@ void updateLocalTime() {
     // - In ottobre, se siamo prima dell'ultima domenica, si applica l'ora legale.
     if ((currentMonth > 3 && currentMonth < 10) || (currentMonth == 3 && currentDay > lastSundayOfMonth(currentYear, 3)) || (currentMonth == 10 && currentDay < lastSundayOfMonth(currentYear, 10))) {
       timeInfo.tm_hour += 1;  // Aggiunge 1 ora per l'ora legale
+    } else {
+      Serial.println("[NTP] Aggiornamento orario fallito, nessuna connessione!");
+      reboot();
     }
 
     // Converte nuovamente la struttura tm in time_t
@@ -358,39 +406,47 @@ void reboot() {
 ==============================================================================*/
 void setup() {
   Serial.begin(115200);
-  delay(2000);  // Attesa stabilizzazione seriale
 
   Serial.println("\n\n==== INIZIALIZZAZIONE SISTEMA ====");
 
-  // Configurazione interfacce di rete
   Network.onEvent(onEvent);
+  Serial.println("[ETH] Event control system initialized");
   WiFi.onEvent(onEvent);
+  Serial.println("[WiFi] Event control system initialized");
   Wire.begin();
+  Serial.println("[I2C] Wire initialized");
 
-  // Tentativo connessione Ethernet
-  unsigned long startTime = millis();
-  do {
-    ETH.begin();
-    delay(2000);
-    if (eth_connected) break;
-  } while (millis() - startTime < 10000);
-
-  // Fallback a WiFi se Ethernet non disponibile
-  if (!eth_connected) {
-    Serial.print("[NET] Fallback a WiFi");
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
-
-    startTime = millis();
-    while (!wifi_connected && (millis() - startTime < 20000)) {
-      delay(500);
-      Serial.print(".");
+  // Configurazione RTC
+  if (!rtc.begin()) {
+    Serial.println("[RTC] Sensore non rilevato!");
+    rtc_connected = false;
+    if (!wifi_connected && !eth_connected) {
+      Serial.println("[RTC] Impossbile passare all'orario NTP, internet assente!");
+      delay(1000);
+      reboot();
     }
-    if (wifi_connected) {
-      Serial.println("\n[WiFi] Connesso");
-      Serial.println("[WiFi] IP assegnato: ");
-      Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("[RTC] Sensore configurato");
+    rtc_connected = true;
+  }
+  timeClient.begin();
+
+  cause = esp_sleep_get_wakeup_cause();
+
+  needFullRead = false;
+
+  if (cause == ESP_SLEEP_WAKEUP_EXT0) {
+    Serial.println("[WAKE] GPIO interrupt (pluviometro)");
+    // 2a) Solo incrementa contatore pioggia
+    WaterMm      += equivalentH;
+    WaterMmDaily += equivalentH;
+    // 2b) se è un istante di lettura sensori… 
+    updateLocalTime();  // aggiorna ora corrente
+    if ((now.minute() % DATA_READ_DELTA_MINUTES == 0) && (RdLastMinutes != now.minute())) {
+      needFullRead = true;
     } else {
-      Serial.println("\n[WiFi] Fallito");
+      delay(500);
+      enterDeepSleep();
     }
   }
 
@@ -410,21 +466,6 @@ void setup() {
   } else {
     Serial.println("[BMP280] Sensore configurato");
   }
-
-  // Configurazione RTC
-  if (!rtc.begin()) {
-    Serial.println("[RTC] Sensore non rilevato!");
-    rtc_connected = false;
-    if (!wifi_connected && !eth_connected) {
-      Serial.println("[RTC] Impossbile passare all'orario NTP, internet assente!");
-      delay(1000);
-      reboot();
-    }
-  } else {
-    Serial.println("[RTC] Sensore configurato");
-    rtc_connected = true;
-  }
-  timeClient.begin();
 
   if ((eth_connected || wifi_connected) && rtc_connected) {
     if (rtc.lostPower() && now.year() <= 2018) {
@@ -463,26 +504,31 @@ void setup() {
 ==============================================================================*/
 void loop() {
 
-  Blynk.run();
+  updateLocalTime();  // aggiorna ora corrente
 
-  if (digitalRead(RAINGAUGE_PIN)) {
-    WaterMm += equivalentH;
-    WaterMmDaily += equivalentH;
-    delay(100);
+  // 1) Scopri da cosa siamo svegliati
+  if (cause == ESP_SLEEP_WAKEUP_TIMER) {
+    Serial.println("[WAKE] Timer scaduto");
+    // 3) è sempre ora di leggere sensori
+    needFullRead = true;
+  }
+  else {
+    Serial.println("[WAKE] Power‑on o altro wakeup");
+    // al primo avvio facciamoci la lettura completa
+    needFullRead = true;
   }
 
-  updateLocalTime();
-
-  if ((now.minute() % DATA_READ_DELTA_MINUTES == 0) && (RdLastMinutes != now.minute())) {
+  // 4) Se ci serve la lettura completa, accendiamo rete, leggiamo sensori e inviamo
+  if (needFullRead) {
     Serial.println("\n\n==== NUOVA LETTURA ====");
     timeStamp();
     Serial.println("Firmware: " + String(BLYNK_FIRMWARE_VERSION));
 
-    // Lettura sensori
+    // —–––––– Lettura SHT3x
     if (sht3x.measure()) {
       temperature = sht3x.temperature();
-      humidity = sht3x.humidity();
-
+      humidity    = sht3x.humidity();
+      
       if (temperature < 100) {
         Serial.printf("Temperatura: %.1f °C\n", temperature);
       } else {
@@ -515,14 +561,11 @@ void loop() {
         Serial.println("Pressione: Err");
       }
 
-      Serial.printf("Pioggia: %.3f mm\n", WaterMm);
-
+      Serial.printf("Pioggia accumulata (ultima sessione): %.3f mm\n", WaterMm);
       Serial.printf("Pioggia giornaliera: %.3f mm\n", WaterMmDaily);
-
-
       Serial.println("------------------------");
 
-      // Invio dati ai vari servizi
+      // —–––––– Invio dati via HTTP/MQTT se connessi
       if ((eth_connected || wifi_connected) && !OFFLINE_MOD) {
         Blynk.virtualWrite(V0, temperature);
         Blynk.virtualWrite(V1, humidity);
@@ -530,27 +573,28 @@ void loop() {
         sendDataViaHTTP();
         sendDataViaMQTT();
       } else if (OFFLINE_MOD) {
-        Serial.println("[NET] Offline mode attiva, dati non inviati");
+        Serial.println("[NET] Offline mode attiva, skip invio");
       } else {
-        Serial.println("[NET] Nessuna connessione per l'invio");
+        Serial.println("[NET] Nessuna connessione per invio");
       }
 
+      // 4b) azzera contatore “istantaneo” di pioggia
+      WaterMm = 0;
+      // 4c) se è cambiato il giorno, azzera anche il giornaliero
       RdLastMinutes = now.minute();
-    } else {
-      Serial.println("[SHT35] Errore lettura");
+      if (now.day() != LastDay) {
+        WaterMmDaily = 0;
+        LastDay      = now.day();
+      }
+      Serial.println("========================");
     }
-
-    WaterMm = 0;
-    if (now.day() != LastDay) {
-      WaterMmDaily = 0;
-      LastDay = now.day();
+    else {
+      Serial.println("[SHT35] Errore lettura sensore");
     }
-
-    Serial.println("========================");
-
-  } else {
-    //enterDeepSleep();
   }
+
+  // 5) Configura GPIO+timer e torna in deep‑sleep
+  enterDeepSleep();
 }
 
 /*==============================================================================
