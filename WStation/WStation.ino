@@ -197,8 +197,8 @@ void sendDataViaHTTP() {
          + String(now.minute()) + ":00";
 
   if (temperature != 999) url += "&tempf=" + String(temperature * 9 / 5 + 32, 1);
-  url += "&rainin=" + String(WaterMm, 3);
-  url += "&dailyrainin=" + String(WaterMmDaily, 3);
+  url += "&rainin=" + String(WaterMm/25.4, 3);
+  url += "&dailyrainin=" + String(WaterMmDaily/25.4, 3);
   if (pressure > 0) url += "&baromin=" + String(pressure * 0.02952998, 4);
   if (humidity != 999) url += "&humidity=" + String(humidity, 1);
   url += "&softwaretype=WStation&action=updateraw";
