@@ -285,10 +285,10 @@ void sendErrorViaMQTT() {
 
   String payload = "{";
 
-  payload += "\"shtstatus\":" + String(sht_error ? "Errore" : "Ok") + ",";
-  payload += "\"bmpstatus\":" + String(bmp_error ? "Errore" : "Ok") + ",";
-  payload += "\"rtcstatus\":" + String(rtc_connected ? "Ok" : "Errore") + ",";
-  payload += "\"blynkstatus\":" + String(blynk_error ? "Errore" : "Ok");
+  payload += "\"shtstatus\":\"" + String(sht_error ? "Errore" : "Ok") + "\",";
+  payload += "\"bmpstatus\":\"" + String(bmp_error ? "Errore" : "Ok") + "\",";
+  payload += "\"rtcstatus\":\"" + String(rtc_connected ? "Ok" : "Errore") + "\",";
+  payload += "\"blynkstatus\":\"" + String(blynk_error ? "Errore" : "Ok") + "\"";
 
   payload += "}";
 
