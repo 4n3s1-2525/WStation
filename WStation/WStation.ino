@@ -388,6 +388,27 @@ void updateLocalTime() {
   }
 }
 
+void checkForOTA() {
+  if (!(eth_connected || wifi_connected)) {
+    Serial.println("[OTA] Nessuna connessione Internet, skip OTA");
+    return;
+  }
+
+  Serial.println("[OTA] Controllo aggiornamenti firmware...");
+  Blynk.config(BLYNK_AUTH_TOKEN);
+  if (!Blynk.connect(3000)) {
+    Serial.println("[OTA] Impossibile connettersi a Blynk per OTA");
+    return;
+  }
+
+  unsigned long start = millis();
+  while (millis() - start < 5000) {
+    Blynk.run();        // processa eventuali comandi OTA
+    delay(10);
+  }
+  Serial.println("[OTA] Check OTA completato");
+}
+
 void timeStamp() {
   updateLocalTime();
   Serial.printf("[RTC] %04d-%02d-%02d %02d:%02d:%02d\n",
@@ -416,7 +437,11 @@ void setup() {
   Wire.begin();
   Serial.println("[I2C] Wire initialized");
 
+  //Connessione ad internet
   connectToInternet();
+
+  //Controllo disponibilità di aggioranmenti OTA
+  checkForOTA();
 
   // Configurazione RTC
   if (!rtc.begin()) {
