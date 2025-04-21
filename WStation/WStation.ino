@@ -270,7 +270,7 @@ void sendDataViaMQTT() {
   payload += "}";
 
   // Pubblica i dati sul topic definito
-  if (mqttClient.publish(mqtt_topic, payload.c_str())) {
+  if (mqttClient.publish(mqtt_topic_data, payload.c_str(), true)) {
     Serial.println("[MQTT] Dati pubblicati correttamente");
   } else {
     Serial.println("[MQTT] Errore pubblicazione dati");
@@ -293,7 +293,7 @@ void sendErrorViaMQTT() {
   payload += "}";
 
   // Pubblica i dati sul topic definito
-  if (mqttClient.publish(mqtt_topic, payload.c_str())) {
+  if (mqttClient.publish(mqtt_topic_error, payload.c_str(), true)) {
     Serial.println("[MQTT] Dati pubblicati correttamente");
   } else {
     Serial.println("[MQTT] Errore pubblicazione dati");
