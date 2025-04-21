@@ -287,7 +287,7 @@ void sendErrorViaMQTT() {
 
   payload += "\"shtstatus\":" + String(sht_error ? "Errore" : "Ok") + ",";
   payload += "\"bmpstatus\":" + String(bmp_error ? "Errore" : "Ok") + ",";
-  payload += "\"rtcstatus\":" + String(rtc_connected ? "Errore" : "Ok") + ",";
+  payload += "\"rtcstatus\":" + String(rtc_connected ? "Ok" : "Errore") + ",";
   payload += "\"blynkstatus\":" + String(blynk_error ? "Errore" : "Ok");
 
   payload += "}";
@@ -427,7 +427,7 @@ void checkForOTA() {
 
   Serial.println("[OTA] Controllo aggiornamenti firmware...");
   Blynk.config(BLYNK_AUTH_TOKEN);
-  blynk_error = Blynk.connect(3000);
+  blynk_error = !Blynk.connect(3000);
   if (!blynk_error) {
     Serial.println("[OTA] Impossibile connettersi a Blynk per OTA");
     return;
@@ -511,14 +511,14 @@ void setup() {
   }
 
   // Inizializzazione sensori
-  sht_error = sht3x.begin();
+  sht_error = !sht3x.begin();
   if (!sht_error) {
     Serial.println("[SHT35] Sensore non rilevato!");
   } else {
     Serial.println("[SHT35] Sensore configurato");
   }
 
-  bmp_error = bmp.begin(0x76);
+  bmp_error = !bmp.begin(0x76);
   if (!bmp_error) {
     Serial.println("[BMP280] Sensore non rilevato!");
   } else {
