@@ -47,7 +47,10 @@
 // Variabili globali e oggetti
 static bool eth_connected = false;   // Stato connessione Ethernet
 static bool wifi_connected = false;  // Stato connessione WiFi
-static bool rtc_connected = false;   // Stato connessione modulo RTC
+static bool rtc_connected = false;   // Stato modulo RTC
+static bool sht_error = false;       // Stato modulo SHT
+static bool bmp_error = false;       // Stato modulo BMP
+static bool blynk_error = false;     // Stato Blynk
 
 ArtronShop_SHT3x sht3x(0x44, &Wire);  // Sensore SHT35 (indirizzo I2C 0x44)
 RTC_DS3231 rtc;                       // Orologio RTC
@@ -71,7 +74,7 @@ PubSubClient mqttClient(mqttWiFiClient);
 float pressure, temperature, humidity;
 RTC_DATA_ATTR int RdLastMinutes;
 RTC_DATA_ATTR int LastDay;
-DateTime now;                // Data/Ora corrente
+DateTime now;  // Data/Ora corrente
 float GRAD_TERMICO = 0.0065;
 
 
@@ -180,7 +183,7 @@ int lastSundayOfMonth(int year, int month) {
 }
 
 /*==============================================================================
-  INVIO DATI A SERVIZI ESTERNI
+  INVIO DATI E ERRORI A SERVIZI ESTERNI
 ==============================================================================*/
 void sendDataViaHTTP() {
   if (!(eth_connected || wifi_connected)) {
@@ -196,11 +199,11 @@ void sendDataViaHTTP() {
          + String(now.hour()) + ":"
          + String(now.minute()) + ":00";
 
-  if (temperature != 999) url += "&tempf=" + String(temperature * 9 / 5 + 32, 1);
-  url += "&rainin=" + String(WaterMm/25.4, 3);
-  url += "&dailyrainin=" + String(WaterMmDaily/25.4, 3);
-  if (pressure > 0) url += "&baromin=" + String(pressure * 0.02952998, 4);
-  if (humidity != 999) url += "&humidity=" + String(humidity, 1);
+  if (!sht_error) url += "&tempf=" + String(temperature * 9 / 5 + 32, 1);
+  url += "&rainin=" + String(WaterMm / 25.4, 3);
+  url += "&dailyrainin=" + String(WaterMmDaily / 25.4, 3);
+  if (!bmp_error) url += "&baromin=" + String(pressure * 0.02952998, 4);
+  if (!sht_error) url += "&humidity=" + String(humidity, 1);
   url += "&softwaretype=WStation&action=updateraw";
 
   // Invio con ritentativi
@@ -227,8 +230,7 @@ void sendDataViaHTTP() {
   } while (!success && retry < 5);
 }
 
-// Nuova funzione per invio dati via MQTT in formato JSON
-void sendDataViaMQTT() {
+void connectToMQTT() {
   if (!(eth_connected || wifi_connected)) {
     Serial.println("[MQTT] Nessuna connessione disponibile");
     return;
@@ -249,12 +251,20 @@ void sendDataViaMQTT() {
       return;
     }
   }
+}
+
+// Nuova funzione per invio dati via MQTT in formato JSON
+void sendDataViaMQTT() {
+
+  connectToMQTT();
 
   // Creazione del payload in formato JSON
   String payload = "{";
-  payload += "\"temperature\":" + String(temperature, 1) + ",";
-  payload += "\"humidity\":" + String(humidity, 1) + ",";
-  payload += "\"pressure\":" + String(pressure, 1) + ",";
+  if (!sht_error) {
+    payload += "\"temperature\":" + String(temperature, 1) + ",";
+    payload += "\"humidity\":" + String(humidity, 1) + ",";
+  }
+  if (!bmp_error) payload += "\"pressure\":" + String(pressure, 1) + ",";
   payload += "\"watermm\":" + String(WaterMm, 3) + ",";
   payload += "\"watermmdaily\":" + String(WaterMmDaily, 3);
   payload += "}";
@@ -267,6 +277,27 @@ void sendDataViaMQTT() {
   }
 
   mqttClient.disconnect();
+}
+
+void sendErrorViaMQTT() {
+
+  connectToMQTT();
+
+  String payload = "{";
+
+  payload += "\"shtstatus\":" + String(sht_error ? "Errore" : "Ok") + ",";
+  payload += "\"bmpstatus\":" + String(bmp_error ? "Errore" : "Ok") + ",";
+  payload += "\"rtcstatus\":" + String(rtc_connected ? "Errore" : "Ok") + ",";
+  payload += "\"blynkstatus\":" + String(blynk_error ? "Errore" : "Ok");
+
+  payload += "}";
+
+  // Pubblica i dati sul topic definito
+  if (mqttClient.publish(mqtt_topic, payload.c_str())) {
+    Serial.println("[MQTT] Dati pubblicati correttamente");
+  } else {
+    Serial.println("[MQTT] Errore pubblicazione dati");
+  }
 }
 
 /*==============================================================================
@@ -356,7 +387,7 @@ void connectToInternet() {
 void updateLocalTime() {
   if (rtc_connected) {
     now = rtc.now();
-  } else if (eth_connected || wifi_connected){
+  } else if (eth_connected || wifi_connected) {
     if (!timeClient.update()) {
       Serial.println("[NTP] Aggiornamento orario fallito");
       return;
@@ -396,14 +427,15 @@ void checkForOTA() {
 
   Serial.println("[OTA] Controllo aggiornamenti firmware...");
   Blynk.config(BLYNK_AUTH_TOKEN);
-  if (!Blynk.connect(3000)) {
+  blynk_error = Blynk.connect(3000);
+  if (!blynk_error) {
     Serial.println("[OTA] Impossibile connettersi a Blynk per OTA");
     return;
   }
 
   unsigned long start = millis();
   while (millis() - start < 5000) {
-    Blynk.run();        // processa eventuali comandi OTA
+    Blynk.run();  // processa eventuali comandi OTA
     delay(10);
   }
   Serial.println("[OTA] Check OTA completato");
@@ -466,9 +498,9 @@ void setup() {
   if (cause == ESP_SLEEP_WAKEUP_EXT0) {
     Serial.println("[WAKE] GPIO interrupt (pluviometro)");
     // 2a) Solo incrementa contatore pioggia
-    WaterMm      += equivalentH;
+    WaterMm += equivalentH;
     WaterMmDaily += equivalentH;
-    // 2b) se è un istante di lettura sensori… 
+    // 2b) se è un istante di lettura sensori…
     updateLocalTime();  // aggiorna ora corrente
     if ((now.minute() % DATA_READ_DELTA_MINUTES == 0) && (RdLastMinutes != now.minute())) {
       needFullRead = true;
@@ -479,18 +511,16 @@ void setup() {
   }
 
   // Inizializzazione sensori
-  if (!sht3x.begin()) {
+  sht_error = sht3x.begin();
+  if (!sht_error) {
     Serial.println("[SHT35] Sensore non rilevato!");
-    delay(1000);
-    reboot();
   } else {
     Serial.println("[SHT35] Sensore configurato");
   }
 
-  if (!bmp.begin(0x76)) {
+  bmp_error = bmp.begin(0x76);
+  if (!bmp_error) {
     Serial.println("[BMP280] Sensore non rilevato!");
-    delay(1000);
-    reboot();
   } else {
     Serial.println("[BMP280] Sensore configurato");
   }
@@ -513,14 +543,7 @@ void setup() {
     Serial.println("[RTC] Impossibile aggiornare l'ora, connessione a internet assente!");
   }
 
-
-  // Connessione a Blynk
-  if (eth_connected || wifi_connected) {
-    Blynk.config(BLYNK_AUTH_TOKEN);
-    if (!Blynk.connect(3000)) {
-      Serial.println("[Blynk] Connessione fallita");
-    }
-  }
+  sendErrorViaMQTT();
 
   LastDay = now.day();
   RdLastMinutes = now.minute() - 1;  // Forza prima lettura
@@ -539,8 +562,7 @@ void loop() {
     Serial.println("[WAKE] Timer scaduto");
     // 3) è sempre ora di leggere sensori
     needFullRead = true;
-  }
-  else {
+  } else {
     Serial.println("[WAKE] Power‑on o altro wakeup");
     // al primo avvio facciamoci la lettura completa
     needFullRead = true;
@@ -552,23 +574,32 @@ void loop() {
     timeStamp();
     Serial.println("Firmware: " + String(BLYNK_FIRMWARE_VERSION));
 
-    // —–––––– Lettura SHT3x
-    if (sht3x.measure()) {
+    // —–––––– Lettura dati —––––––
+    // —–––––– Lettura SHT35 —––––––
+    if (sht3x.measure() && !sht_error) {
       temperature = sht3x.temperature();
-      humidity    = sht3x.humidity();
-      
+      humidity = sht3x.humidity();
+
       if (temperature < 100) {
         Serial.printf("Temperatura: %.1f °C\n", temperature);
       } else {
         Serial.printf("Temperatura: Err");
+        sht_error = true;
       }
 
       if (humidity <= 100) {
         Serial.printf("Umidità: %.1f %%\n", humidity);
       } else {
         Serial.printf("Umidità: Err");
+        sht_error = true;
       }
 
+    } else {
+      Serial.println("[SHT35] Errore lettura sensore");
+    }
+
+    // —–––––– Lettura BMP —––––––
+    if (!bmp_error) {
       int i = 0;
       do {
         if (i != 0 && !bmp.begin(0x76)) {
@@ -587,38 +618,42 @@ void loop() {
         Serial.printf("Pressione: %.1f hPa\n", pressure);
       } else {
         Serial.println("Pressione: Err");
+        bmp_error = true;
       }
+    } else {
+      Serial.println("Pressione: Err");
+    }
 
-      Serial.printf("Pioggia accumulata (ultima sessione): %.3f mm\n", WaterMm);
-      Serial.printf("Pioggia giornaliera: %.3f mm\n", WaterMmDaily);
-      Serial.println("------------------------");
+    Serial.printf("Pioggia accumulata (ultima sessione): %.3f mm\n", WaterMm);
+    Serial.printf("Pioggia giornaliera: %.3f mm\n", WaterMmDaily);
+    Serial.println("------------------------");
 
-      // —–––––– Invio dati via HTTP/MQTT se connessi
-      if ((eth_connected || wifi_connected) && !OFFLINE_MOD) {
+    // —–––––– Invio dati via HTTP/MQTT se connessi —––––––
+    if ((eth_connected || wifi_connected) && !OFFLINE_MOD) {
+      if (!sht_error) {
         Blynk.virtualWrite(V0, temperature);
         Blynk.virtualWrite(V1, humidity);
+      }
+      if (!bmp_error) {
         Blynk.virtualWrite(V2, pressure);
-        sendDataViaHTTP();
-        sendDataViaMQTT();
-      } else if (OFFLINE_MOD) {
-        Serial.println("[NET] Offline mode attiva, skip invio");
-      } else {
-        Serial.println("[NET] Nessuna connessione per invio");
       }
+      sendDataViaHTTP();
+      sendDataViaMQTT();
+    } else if (OFFLINE_MOD) {
+      Serial.println("[NET] Offline mode attiva, skip invio");
+    } else {
+      Serial.println("[NET] Nessuna connessione per invio");
+    }
 
-      // 4b) azzera contatore “istantaneo” di pioggia
-      WaterMm = 0;
-      // 4c) se è cambiato il giorno, azzera anche il giornaliero
-      RdLastMinutes = now.minute();
-      if (now.day() != LastDay) {
-        WaterMmDaily = 0;
-        LastDay      = now.day();
-      }
-      Serial.println("========================");
+    // 4b) azzera contatore “istantaneo” di pioggia
+    WaterMm = 0;
+    // 4c) se è cambiato il giorno, azzera anche il giornaliero
+    RdLastMinutes = now.minute();
+    if (now.day() != LastDay) {
+      WaterMmDaily = 0;
+      LastDay = now.day();
     }
-    else {
-      Serial.println("[SHT35] Errore lettura sensore");
-    }
+    Serial.println("========================");
   }
 
   // 5) Configura GPIO+timer e torna in deep‑sleep
