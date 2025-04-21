@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Progetto di una stazione meteorologica IoT basata su ESP32 OLIMEX POE con:
-- Lettura di temperatura, umidità e pressione
+- Lettura di temperatura, umidità, pressione e pioggia caduta
 - Alimentazione PoE integrata
 - Monitoraggio ambientale professionale alla portata di tutti
 
@@ -21,6 +21,7 @@ Progetto di una stazione meteorologica IoT basata su ESP32 OLIMEX POE con:
 | Sensore SHT35 | 1 | Range: -40°C ~ +125°C |
 | Modulo BMP280 | 1 | Range pressione: 300-1100 hPa |
 | RTC DS3231 | 1 | Precisione ±2ppm |
+| Pluviometro (Reed magnetico) | 1 |  |
 
 ## Installazione 💻
 1. **Configurazione Arduino IDE:**
@@ -41,15 +42,7 @@ Progetto di una stazione meteorologica IoT basata su ESP32 OLIMEX POE con:
    GND            -> GND Sensori
 
 ## Configurazione ⚙️
-  Crea config.h nella cartella principale con:
-  
-  ```
-  #define BLYNK_TEMPLATE_ID "XXXX"
-  #define BLYNK_AUTH_TOKEN "YYYY"
-  #define WIFI_SSID ""
-  #define WIFI_PASS ""
-  const char* serverUrl = "https://pwsupdate.pwsweather.com/api/v1/submitwx?ID=TUO_ID&PASSWORD=TUA_PASS";
-  ```
+  Inserire tutti i prorpi dati personali di configurazione nel file config.h
 
 ## Utilizzo 🖥️
 1. **Alimentazione:**
