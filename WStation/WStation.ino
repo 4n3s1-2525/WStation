@@ -32,6 +32,7 @@
 #include <Update.h>        // Per OTA updates
 #include <HTTPClient.h>    // Per HTTP requests
 #include <PubSubClient.h>  // Per MQTT
+#include <math.h>
 
 // Configurazione hardware Ethernet (specifica per OLIMEX POE ISO)
 #ifndef ETH_PHY_TYPE
@@ -88,6 +89,8 @@ void sendDataViaHTTP();
 void sendDataViaMQTT();
 void enterDeepSleep();
 void updateLocalTime();
+float getDewPointC(float tempC, float hum);
+float getDewPointF(float tempC, float hum);
 void timeStamp();
 void reboot();
 
@@ -203,6 +206,7 @@ void sendDataViaHTTP() {
   url += "&rainin=" + String(WaterMm / 25.4, 3);
   url += "&dailyrainin=" + String(WaterMmDaily / 25.4, 3);
   if (!bmp_error) url += "&baromin=" + String(pressure * 0.02952998, 4);
+  if (!sht_error) url += "&dewptf=" + String(getDewPointF(temperature, humidity), 1);
   if (!sht_error) url += "&humidity=" + String(humidity, 1);
   url += "&softwaretype=WStation&action=updateraw";
 
@@ -263,6 +267,7 @@ void sendDataViaMQTT() {
   if (!sht_error) {
     payload += "\"temperature\":" + String(temperature, 1) + ",";
     payload += "\"humidity\":" + String(humidity, 1) + ",";
+    payload += "\"dewpoint\":" + String(getDewPointC(temperature, humidity), 1) + ",";
   }
   if (!bmp_error) payload += "\"pressure\":" + String(pressure, 1) + ",";
   payload += "\"watermm\":" + String(WaterMm, 3) + ",";
@@ -288,6 +293,8 @@ void sendErrorViaMQTT() {
   payload += "\"shtstatus\":\"" + String(sht_error ? "Errore" : "Ok") + "\",";
   payload += "\"bmpstatus\":\"" + String(bmp_error ? "Errore" : "Ok") + "\",";
   payload += "\"rtcstatus\":\"" + String(rtc_connected ? "Ok" : "Errore") + "\",";
+  payload += "\"ethstatus\":\"" + String(eth_connected ? "Ok" : "Errore") + "\",";
+  payload += "\"wifistatus\":\"" + String(wifi_connected ? "Ok" : "Errore") + "\",";
   payload += "\"blynkstatus\":\"" + String(blynk_error ? "Errore" : "Ok") + "\"";
 
   payload += "}";
@@ -417,6 +424,24 @@ void updateLocalTime() {
     rawTime = mktime(&timeInfo);
     now = DateTime(rawTime);
   }
+}
+
+// Calcolo dew point in °C
+float getDewPointC(float tempC, float hum) {
+  float a = 17.62;
+  float b = 243.12;
+  float alpha = ((a * tempC) / (b + tempC)) + log(hum / 100.0);
+  float dewC = (b * alpha) / (a - alpha);
+  return dewC;
+}
+
+// Calcolo dew point in °F
+float getDewPointF(float tempC, float hum) {
+  float a = 17.62;
+  float b = 243.12;
+  float alpha = ((a * tempC) / (b + tempC)) + log(hum / 100.0);
+  float dewC = (b * alpha) / (a - alpha);
+  return (dewC * 9.0 / 5.0) + 32.0;  // Convertito in °F
 }
 
 void checkForOTA() {
