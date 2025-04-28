@@ -675,7 +675,7 @@ void loop() {
     WaterMm = 0;
 
     // 4c) se è cambiato il giorno, azzera anche il giornaliero
-    if (now.hours()==23 && now.minute()>=(60-DATA_READ_DELTA_MINUTES)) {
+    if (now.hour()==23 && now.minute()>=(60-DATA_READ_DELTA_MINUTES)) {
       WaterMmDaily = 0;
     }
 
