@@ -524,7 +524,6 @@ void setup() {
     Serial.println("[WAKE] GPIO interrupt (pluviometro)");
     // 2a) Solo incrementa contatore pioggia
     WaterMm += equivalentH;
-    WaterMmDaily += equivalentH;
     // 2b) se è un istante di lettura sensori…
     updateLocalTime();  // aggiorna ora corrente
     if ((now.minute() % DATA_READ_DELTA_MINUTES == 0) && (RdLastMinutes != now.minute())) {
@@ -649,6 +648,8 @@ void loop() {
       Serial.println("Pressione: Err");
     }
 
+    WaterMmDaily += WaterMm;
+
     Serial.printf("Pioggia accumulata (ultima sessione): %.3f mm\n", WaterMm);
     Serial.printf("Pioggia giornaliera: %.3f mm\n", WaterMmDaily);
     Serial.println("------------------------");
@@ -674,7 +675,7 @@ void loop() {
     WaterMm = 0;
 
     // 4c) se è cambiato il giorno, azzera anche il giornaliero
-    if (now.hours==0 && now.minute<DATA_READ_DELTA_MINUTES) {
+    if (now.hours()==23 && now.minute()>=(60-DATA_READ_DELTA_MINUTES)) {
       WaterMmDaily = 0;
     }
 
