@@ -1,8 +1,8 @@
+WStation/config.h
 WStation/build/esp32.esp32.esp32-poe-iso/WStation.ino.bin
 WStation/build/esp32.esp32.esp32-poe-iso/WStation.ino.bootloader.bin
 WStation/build/esp32.esp32.esp32-poe-iso/WStation.ino.elf
 WStation/build/esp32.esp32.esp32-poe-iso/WStation.ino.map
 WStation/build/esp32.esp32.esp32-poe-iso/WStation.ino.merged.bin
 WStation/build/esp32.esp32.esp32-poe-iso/WStation.ino.partitions.bin
-WStation/config.h
 /Test
