@@ -672,12 +672,14 @@ void loop() {
 
     // 4b) azzera contatore “istantaneo” di pioggia
     WaterMm = 0;
+
     // 4c) se è cambiato il giorno, azzera anche il giornaliero
-    RdLastMinutes = now.minute();
-    if (now.day() != LastDay) {
+    if (now.hours==0 && now.minute<DATA_READ_DELTA_MINUTES) {
       WaterMmDaily = 0;
-      LastDay = now.day();
     }
+
+    RdLastMinutes = now.minute();
+
     Serial.println("========================");
   }
 
