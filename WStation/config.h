@@ -15,7 +15,8 @@
 // Questi parametri permettono al dispositivo di comunicare tramite il protocollo MQTT
 const char* mqtt_server = "";       // Inserire l'indirizzo del server MQTT
 const int mqtt_port = ;              // Inserire la porta del server MQTT (tipicamente 1883 per connessioni non sicure)
-const char* mqtt_topic = "";        // Inserire il topic MQTT su cui pubblicare/sottoscriversi
+const char* mqtt_topic_data = "";        // Inserire il topic MQTT su cui pubblicare/sottoscriversi
+const char* mqtt_topic_error = "";       // Inserire il topic MQTT su cui pubblicare/sottoscriversi
 
 
 // Configurazione per l'invio dei dati a PWS Weather
