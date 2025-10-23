@@ -247,11 +247,18 @@ void connectToMQTT() {
   if (!mqttClient.connected()) {
     String clientId = "ESP32Client-";
     clientId += String(random(0xffff), HEX);
-    if (mqttClient.connect(clientId.c_str())) {
-      Serial.println("[MQTT] Connesso al broker");
+    
+    Serial.print("[MQTT] Tentativo di connessione al broker...");
+    
+    // Connessione CON autenticazione (username e password)
+    if (mqttClient.connect(clientId.c_str(), mqtt_username, mqtt_password)) {
+      Serial.println(" Connesso!");
+      Serial.print("[MQTT] Client ID: ");
+      Serial.println(clientId);
     } else {
-      Serial.print("[MQTT] Connessione fallita, rc=");
+      Serial.print(" Fallita, rc=");
       Serial.println(mqttClient.state());
+      Serial.println("[MQTT] Codici errore: -4=timeout, -3=conn persa, -2=conn fallita, -1=disconnesso, 1=bad protocol, 2=bad client id, 3=unavailable, 4=bad credentials, 5=unauthorized");
       return;
     }
   }
