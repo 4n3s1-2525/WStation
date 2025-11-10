@@ -33,6 +33,7 @@
 #include <HTTPClient.h>    // Per HTTP requests
 #include <PubSubClient.h>  // Per MQTT
 #include <math.h>
+#include <ArduinoJson.h>  // Per costruzione JSON efficiente
 
 // Configurazione hardware Ethernet (specifica per OLIMEX POE ISO)
 #ifndef ETH_PHY_TYPE
@@ -266,24 +267,39 @@ void connectToMQTT() {
 
 // Nuova funzione per invio dati via MQTT in formato JSON
 void sendDataViaMQTT() {
-
   connectToMQTT();
 
-  // Creazione del payload in formato JSON
-  String payload = "{";
+  // Crea documento JSON (dimensionato per i nostri dati)
+  StaticJsonDocument<256> doc;  // 256 byte sufficienti per ~6-8 campi
+  
   if (!sht_error) {
-    payload += "\"temperature\":" + String(temperature, 1) + ",";
-    payload += "\"humidity\":" + String(humidity, 1) + ",";
-    payload += "\"dewpoint\":" + String(getDewPointC(temperature, humidity), 1) + ",";
+    doc["temperature"] = round(temperature * 10) / 10.0;  // 1 decimale
+    doc["humidity"] = round(humidity * 10) / 10.0;
+    doc["dewpoint"] = round(getDewPointC(temperature, humidity) * 10) / 10.0;
   }
-  if (!bmp_error) payload += "\"pressure\":" + String(pressure, 1) + ",";
-  payload += "\"watermm\":" + String(WaterMm, 3) + ",";
-  payload += "\"watermmdaily\":" + String(WaterMmDaily, 3);
-  payload += "}";
+  
+  if (!bmp_error) {
+    doc["pressure"] = round(pressure * 10) / 10.0;
+  }
+  
+  doc["watermm"] = round(WaterMm * 1000) / 1000.0;  // 3 decimali
+  doc["watermmdaily"] = round(WaterMmDaily * 1000) / 1000.0;
 
-  // Pubblica i dati sul topic definito
-  if (mqttClient.publish(mqtt_topic_data, payload.c_str(), true)) {
+  // Serializza in buffer
+  char payload[256];
+  size_t len = serializeJson(doc, payload);
+  
+  if (len == 0) {
+    Serial.println("[MQTT] Errore serializzazione JSON");
+    return;
+  }
+
+  // Pubblica
+  if (mqttClient.publish(mqtt_topic_data, payload, true)) {
     Serial.println("[MQTT] Dati pubblicati correttamente");
+    Serial.print("[MQTT] Payload size: ");
+    Serial.print(len);
+    Serial.println(" bytes");
   } else {
     Serial.println("[MQTT] Errore pubblicazione dati");
   }
@@ -292,25 +308,32 @@ void sendDataViaMQTT() {
 }
 
 void sendErrorViaMQTT() {
-
   connectToMQTT();
 
-  String payload = "{";
+  // Crea documento JSON per stati
+  StaticJsonDocument<256> doc;
+  
+  doc["shtstatus"] = sht_error ? "Errore" : "Ok";
+  doc["bmpstatus"] = bmp_error ? "Errore" : "Ok";
+  doc["rtcstatus"] = rtc_connected ? "Ok" : "Errore";
+  doc["ethstatus"] = eth_connected ? "Ok" : "Errore";
+  doc["wifistatus"] = wifi_connected ? "Ok" : "Errore";
+  doc["blynkstatus"] = blynk_error ? "Errore" : "Ok";
 
-  payload += "\"shtstatus\":\"" + String(sht_error ? "Errore" : "Ok") + "\",";
-  payload += "\"bmpstatus\":\"" + String(bmp_error ? "Errore" : "Ok") + "\",";
-  payload += "\"rtcstatus\":\"" + String(rtc_connected ? "Ok" : "Errore") + "\",";
-  payload += "\"ethstatus\":\"" + String(eth_connected ? "Ok" : "Errore") + "\",";
-  payload += "\"wifistatus\":\"" + String(wifi_connected ? "Ok" : "Errore") + "\",";
-  payload += "\"blynkstatus\":\"" + String(blynk_error ? "Errore" : "Ok") + "\"";
+  // Serializza
+  char payload[256];
+  size_t len = serializeJson(doc, payload);
+  
+  if (len == 0) {
+    Serial.println("[MQTT] Errore serializzazione JSON status");
+    return;
+  }
 
-  payload += "}";
-
-  // Pubblica i dati sul topic definito
-  if (mqttClient.publish(mqtt_topic_error, payload.c_str(), true)) {
-    Serial.println("[MQTT] Dati pubblicati correttamente");
+  // Pubblica
+  if (mqttClient.publish(mqtt_topic_error, payload, true)) {
+    Serial.println("[MQTT] Status pubblicati correttamente");
   } else {
-    Serial.println("[MQTT] Errore pubblicazione dati");
+    Serial.println("[MQTT] Errore pubblicazione status");
   }
 }
 
