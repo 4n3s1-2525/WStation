@@ -16,7 +16,7 @@
 #include "config.h"         // File di configurazione sensibile
 #define BLYNK_PRINT Serial  // Abilita debug Blynk su Serial
 
-#define BLYNK_FIRMWARE_VERSION "0.2.1"  // Versione firmware (incrementare ad ogni release)
+#define BLYNK_FIRMWARE_VERSION "0.3.0"  // Versione firmware (incrementare ad ogni release)
 
 // Librerie principali
 #include <BlynkSimpleEsp32.h>
