@@ -640,8 +640,10 @@ void loop() {
         } else {
           Serial.println("[BMP280] Sensore ri-configurato");
         }
-        pressure = bmp.readPressure() / 100.0F;                                                                                         // Converti a hPa
-        pressure = pressure * pow((1 - ((GRAD_TERMICO * ALTITUDINE) / (temperature + 273.15 + (GRAD_TERMICO * ALTITUDINE)))), -5.257);  // Compensazione altitudine
+        float tempForComp = temperature;
+        if (sht_error) tempForComp = bmp.readTemperature();
+        pressure = bmp.readPressure() / 100.0F;
+        pressure = pressure * pow((1 - ((GRAD_TERMICO * ALTITUDINE) / (tempForComp + 273.15 + (GRAD_TERMICO * ALTITUDINE)))), -5.257);  // Compensazione altitudine
         i++;
       } while ((pressure < 900 || pressure > 1100) && i <= 5);
 
